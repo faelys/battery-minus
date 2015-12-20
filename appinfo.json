@@ -1,0 +1,15 @@
+{
+  "uuid": "c3d8cf15-c8fe-4699-806c-24b9c163cb33",
+  "shortName": "Battery-",
+  "longName": "Battery-",
+  "companyName": "Natasha Kerensikova",
+  "versionLabel": "1.0",
+  "sdkVersion": "3",
+  "targetPlatforms": ["aplite", "basalt", "chalk"],
+  "watchapp": {
+    "watchface": false
+  },
+  "resources": {
+    "media": []
+  }
+}
