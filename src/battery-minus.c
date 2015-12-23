@@ -17,6 +17,8 @@
 #include <pebble.h>
 #include "storage.h"
 
+#undef DISPLAY_TEST_DATA
+
 static Window *window;
 static SimpleMenuLayer *menu_layer;
 static SimpleMenuSection menu_section;
@@ -174,6 +176,68 @@ window_unload(Window *window) {
 static void
 init(void) {
 	persist_read_data(1, current_page, sizeof current_page);
+
+#ifdef DISPLAY_TEST_DATA
+	current_page[0].time = 1449738000; /* 2015-12-10T10:00:00 */
+	current_page[0].before = APP_STARTED;
+	current_page[0].after = 90;
+	current_page[1].time = 1449741600; /* 2015-12-10T11:00:00 */
+	current_page[1].before = 90;
+	current_page[1].after = 80;
+	current_page[2].time = 1449742980; /* 2015-12-10T11:23:00 */
+	current_page[2].before = ANOMALOUS_VALUE;
+	current_page[2].after = 131;
+	current_page[3].time = 1449743160; /* 2015-12-10T11:26:00 */
+	current_page[3].before = UNKNOWN;
+	current_page[3].after = 70;
+	current_page[4].time = 1449743460; /* 2015-12-10T11:31:00 */
+	current_page[4].before = 70;
+	current_page[4].after = 128 | 70;
+	current_page[5].time = 1449743940; /* 2015-12-10T11:39:00 */
+	current_page[5].before = 128 | 70;
+	current_page[5].after = 128 | 80;
+	current_page[6].time = 1449744000; /* 2015-12-10T11:40:00 */
+	current_page[6].before = 128 | 80;
+	current_page[6].after = 80;
+	current_page[7].time = 1449744420; /* 2015-12-10T11:47:00 */
+	current_page[7].before = 80;
+	current_page[7].after = 128 | 70;
+	current_page[8].time = 1449744660; /* 2015-12-10T11:51:00 */
+	current_page[8].before = 128 | 70;
+	current_page[8].after = 80;
+	current_page[9].time = 1449744660; /* 2015-12-10T11:51:00 */
+	current_page[9].before = 80;
+	current_page[9].after = 90;
+	current_page[10].time = 1449745140; /* 2015-12-10T11:59:00 */
+	current_page[10].before = 90;
+	current_page[10].after = 128 | 100;
+	current_page[11].time = 1449745260; /* 2015-12-10T12:01:00 */
+	current_page[11].before = 128 | 100;
+	current_page[11].after = 128 | 80;
+	current_page[12].time = 1449745620; /* 2015-12-10T12:07:00 */
+	current_page[12].before = 128 | 80;
+	current_page[12].after = 60;
+	current_page[13].time = 1449745800; /* 2015-12-10T12:10:00 */
+	current_page[13].before = APP_CLOSED;
+	current_page[13].after = 60;
+	current_page[14].time = 1449846060; /* 2015-12-11T16:01:00 */
+	current_page[14].before = APP_STARTED;
+	current_page[14].after = 128 | 40;
+	current_page[15].time = 1449846480; /* 2015-12-11T16:08:00 */
+	current_page[15].before = 128 | 40;
+	current_page[15].after = 128 | 40;
+	current_page[16].time = 1449846660; /* 2015-12-11T16:11:00 */
+	current_page[16].before = UNKNOWN;
+	current_page[16].after = 128 | 60;
+	current_page[17].time = 1449846780; /* 2015-12-11T16:13:00 */
+	current_page[17].before = APP_CLOSED;
+	current_page[17].after = 128 | 60;
+	for (unsigned i = 18; i < PAGE_LENGTH; i += 1) {
+		current_page[i].time = 0;
+		current_page[i].before = 0;
+		current_page[i].after = 0;
+	}
+#endif
 
 	init_strings();
 
