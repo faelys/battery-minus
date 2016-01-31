@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, Natacha Porté
+ * Copyright (c) 2015-2016, Natacha Porté
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -126,6 +126,24 @@ init_strings(void) {
 	}
 }
 
+/****************
+ * MENU ACTIONS *
+ ****************/
+
+static void
+do_start_worker(int index, void *context) {
+	(void)index;
+	(void)context;
+	app_worker_launch();
+}
+
+static void
+do_stop_worker(int index, void *context) {
+	(void)index;
+	(void)context;
+	app_worker_kill();
+}
+
 /*********************
  * WINDOW MANAGEMENT *
  *********************/
@@ -135,10 +153,25 @@ window_load(Window *window) {
 	Layer *window_layer = window_get_root_layer(window);
 	GRect bounds = layer_get_bounds(window_layer);
 	unsigned i = PAGE_LENGTH;
+	bool is_empty = true;
 
 	menu_section.title = 0;
 	menu_section.items = menu_items;
 	menu_section.num_items = 0;
+
+	if (app_worker_is_running()) {
+		menu_items[0] = (SimpleMenuItem){
+		    .title = "Stop worker",
+		    .callback = &do_stop_worker
+		};
+		menu_section.num_items += 1;
+	} else {
+		menu_items[0] = (SimpleMenuItem){
+		    .title = "Start worker",
+		    .callback = &do_start_worker
+		};
+		menu_section.num_items += 1;
+	}
 
 	while (i) {
 		i -= 1;
@@ -148,14 +181,15 @@ window_load(Window *window) {
 		menu_items[menu_section.num_items].icon = 0;
 		menu_items[menu_section.num_items].callback = 0;
 		menu_section.num_items += 1;
+		is_empty = false;
 	}
 
-	if (!menu_section.num_items) {
-		menu_items[0].title = "No event recorded";
-		menu_items[0].subtitle = 0;
-		menu_items[0].icon = 0;
-		menu_items[0].callback = 0;
-		menu_section.num_items = 1;
+	if (is_empty) {
+		menu_items[menu_section.num_items].title = "No event recorded";
+		menu_items[menu_section.num_items].subtitle = 0;
+		menu_items[menu_section.num_items].icon = 0;
+		menu_items[menu_section.num_items].callback = 0;
+		menu_section.num_items += 1;
 	}
 
 	menu_layer = simple_menu_layer_create(bounds, window,
