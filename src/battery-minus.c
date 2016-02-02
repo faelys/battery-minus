@@ -15,6 +15,7 @@
  */
 
 #include <pebble.h>
+#include "simple_dialog.h"
 #include "storage.h"
 
 #undef DISPLAY_TEST_DATA
@@ -134,14 +135,55 @@ static void
 do_start_worker(int index, void *context) {
 	(void)index;
 	(void)context;
-	app_worker_launch();
+	char buffer[256];
+	AppWorkerResult result = app_worker_launch();
+
+	switch (result) {
+	    case APP_WORKER_RESULT_SUCCESS:
+		push_simple_dialog("Worker start requested.", true);
+		break;
+	    case APP_WORKER_RESULT_ALREADY_RUNNING:
+		push_simple_dialog("Worker is already running.", true);
+		break;
+	    case APP_WORKER_RESULT_ASKING_CONFIRMATION:
+		APP_LOG(APP_LOG_LEVEL_INFO,
+		    "Frirmware requesting confirmation, skipping UI");
+		break;
+	    default:
+		snprintf(buffer, sizeof buffer,
+		   "Unexpected result %d",
+		   (int)result);
+		push_simple_dialog(buffer, false);
+	}
 }
 
 static void
 do_stop_worker(int index, void *context) {
 	(void)index;
 	(void)context;
-	app_worker_kill();
+	char buffer[256];
+	AppWorkerResult result = app_worker_kill();
+
+	switch (result) {
+	    case APP_WORKER_RESULT_SUCCESS:
+		push_simple_dialog("Worker stop requested.", true);
+		break;
+	    case APP_WORKER_RESULT_NOT_RUNNING:
+		push_simple_dialog("Worker is already stopped.", true);
+		break;
+	    case APP_WORKER_RESULT_DIFFERENT_APP:
+		push_simple_dialog("A different worker is running.", true);
+		break;
+	    case APP_WORKER_RESULT_ASKING_CONFIRMATION:
+		APP_LOG(APP_LOG_LEVEL_INFO,
+		    "Frirmware requesting confirmation, skipping UI");
+		break;
+	    default:
+		snprintf(buffer, sizeof buffer,
+		   "Unexpected result %d",
+		   (int)result);
+		push_simple_dialog(buffer, false);
+	}
 }
 
 /*********************
