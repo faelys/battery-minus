@@ -29,6 +29,12 @@ static struct event current_page[PAGE_LENGTH];
 static const char *titles[PAGE_LENGTH];
 static const char *dates[PAGE_LENGTH];
 
+static void
+do_start_worker(int index, void *context);
+
+static void
+do_stop_worker(int index, void *context);
+
 /*************
  * MENU ITEM *
  *************/
@@ -127,6 +133,71 @@ init_strings(void) {
 	}
 }
 
+static time_t
+latest_event(void) {
+	time_t result = current_page[0].time;
+	for (unsigned j = 1; j < PAGE_LENGTH; j += 1) {
+		if (result < current_page[j].time) {
+			result = current_page[j].time;
+		}
+	}
+	return result;
+}
+
+static void
+rebuild_menu(void) {
+	unsigned i = PAGE_LENGTH;
+	bool is_empty = true;
+	time_t old_latest = latest_event();
+
+	persist_read_data(1, current_page, sizeof current_page);
+
+	if (old_latest != latest_event()) {
+		for (unsigned i = 0; i < PAGE_LENGTH; i += 1) {
+			free((void *)dates[i]);
+			free((void *)titles[i]);
+		}
+		init_strings();
+	}
+
+	menu_section.title = 0;
+	menu_section.items = menu_items;
+	menu_section.num_items = 0;
+
+	if (app_worker_is_running()) {
+		menu_items[0] = (SimpleMenuItem){
+		    .title = "Stop worker",
+		    .callback = &do_stop_worker
+		};
+		menu_section.num_items += 1;
+	} else {
+		menu_items[0] = (SimpleMenuItem){
+		    .title = "Start worker",
+		    .callback = &do_start_worker
+		};
+		menu_section.num_items += 1;
+	}
+
+	while (i) {
+		i -= 1;
+		if (!titles[i]) continue;
+		menu_items[menu_section.num_items].title = titles[i];
+		menu_items[menu_section.num_items].subtitle = dates[i];
+		menu_items[menu_section.num_items].icon = 0;
+		menu_items[menu_section.num_items].callback = 0;
+		menu_section.num_items += 1;
+		is_empty = false;
+	}
+
+	if (is_empty) {
+		menu_items[menu_section.num_items].title = "No event recorded";
+		menu_items[menu_section.num_items].subtitle = 0;
+		menu_items[menu_section.num_items].icon = 0;
+		menu_items[menu_section.num_items].callback = 0;
+		menu_section.num_items += 1;
+	}
+}
+
 /****************
  * MENU ACTIONS *
  ****************/
@@ -191,48 +262,16 @@ do_stop_worker(int index, void *context) {
  *********************/
 
 static void
+window_appear(Window *window) {
+	rebuild_menu();
+}
+
+static void
 window_load(Window *window) {
 	Layer *window_layer = window_get_root_layer(window);
 	GRect bounds = layer_get_bounds(window_layer);
-	unsigned i = PAGE_LENGTH;
-	bool is_empty = true;
 
-	menu_section.title = 0;
-	menu_section.items = menu_items;
-	menu_section.num_items = 0;
-
-	if (app_worker_is_running()) {
-		menu_items[0] = (SimpleMenuItem){
-		    .title = "Stop worker",
-		    .callback = &do_stop_worker
-		};
-		menu_section.num_items += 1;
-	} else {
-		menu_items[0] = (SimpleMenuItem){
-		    .title = "Start worker",
-		    .callback = &do_start_worker
-		};
-		menu_section.num_items += 1;
-	}
-
-	while (i) {
-		i -= 1;
-		if (!titles[i]) continue;
-		menu_items[menu_section.num_items].title = titles[i];
-		menu_items[menu_section.num_items].subtitle = dates[i];
-		menu_items[menu_section.num_items].icon = 0;
-		menu_items[menu_section.num_items].callback = 0;
-		menu_section.num_items += 1;
-		is_empty = false;
-	}
-
-	if (is_empty) {
-		menu_items[menu_section.num_items].title = "No event recorded";
-		menu_items[menu_section.num_items].subtitle = 0;
-		menu_items[menu_section.num_items].icon = 0;
-		menu_items[menu_section.num_items].callback = 0;
-		menu_section.num_items += 1;
-	}
+	rebuild_menu();
 
 	menu_layer = simple_menu_layer_create(bounds, window,
 	    &menu_section, 1, 0);
@@ -321,6 +360,7 @@ init(void) {
 	window_set_window_handlers(window, (WindowHandlers) {
 	    .load = window_load,
 	    .unload = window_unload,
+	    .appear = window_appear,
 	});
 	window_stack_push(window, true);
 }
