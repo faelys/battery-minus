@@ -36,6 +36,22 @@ static void
 do_stop_worker(int index, void *context);
 
 /*************
+ * UTILITIES *
+ *************/
+
+static unsigned
+first_index(struct event *page, size_t page_length) {
+	unsigned j;
+
+	for (j = 1;
+	    j < page_length && page[j - 1].time < page[j].time;
+	    j += 1);
+	if (j >= page_length || !page[j].time) j = 0;
+
+	return j;
+}
+
+/*************
  * MENU ITEM *
  *************/
 
@@ -54,12 +70,7 @@ init_strings(void) {
 	char buffer[256];
 	int ret;
 	struct tm *tm;
-	unsigned j;
-
-	for (j = 1;
-	    j < PAGE_LENGTH && current_page[j - 1].time < current_page[j].time;
-	    j += 1);
-	if (j >= PAGE_LENGTH || !current_page[j].time) j = 0;
+	unsigned j = first_index(current_page, PAGE_LENGTH);
 
 	for (unsigned i = 0; i < PAGE_LENGTH; i += 1) {
 		if (!current_page[j].time) {
