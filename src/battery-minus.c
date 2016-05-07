@@ -14,6 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#include <inttypes.h>
 #include <pebble.h>
 #include "simple_dialog.h"
 #include "storage.h"
@@ -49,6 +50,109 @@ first_index(struct event *page, size_t page_length) {
 	if (j >= page_length || !page[j].time) j = 0;
 
 	return j;
+}
+
+/**********************
+ * DATA UPLOAD TO WEB *
+ **********************/
+
+static const char keyword_anomalous[] = "error";
+static const char keyword_charge_start[] = "charge";
+static const char keyword_charge_stop[] = "dischg";
+static const char keyword_charging[] = "+";
+static const char keyword_discharging[] = "-";
+static const char keyword_unknown[] = "unknown";
+static const char keyword_start[] = "start";
+static const char keyword_start_charging[] = "start+";
+static const char keyword_stop[] = "stop";
+static const char keyword_stop_charging[] = "stop+";
+
+static bool
+event_csv_image(char *buffer, size_t size, struct event *event) {
+	struct tm *tm;
+	size_t ret;
+	int i;
+	const char *keyword;
+	uint8_t int_1, int_2;
+	bool has_int_2;
+
+	if (!buffer || !event) return false;
+
+	tm = gmtime(&event->time);
+	if (!tm) {
+		APP_LOG(APP_LOG_LEVEL_ERROR, "event_csv_image: "
+		    "Unable to get UTC time for %" PRIi32, event->time);
+		return false;
+	}
+
+	ret = strftime(buffer, size, "%FT%TZ", tm);
+	if (!ret) {
+		APP_LOG(APP_LOG_LEVEL_ERROR, "event_csv_image: "
+		    "Unable to build RFC-3339 representation of %" PRIi32,
+		    event->time);
+		return false;
+	}
+
+	if (ret >= size) {
+		APP_LOG(APP_LOG_LEVEL_ERROR, "event_csv_image: "
+		    "Unexpected returned value %zu of strftime on buffer %zu",
+		    ret, size);
+		return false;
+	}
+
+	switch (event->before) {
+	    case UNKNOWN:
+		keyword = keyword_unknown;
+		int_1 = event->after;
+		has_int_2 = false;
+		break;
+
+	    case APP_STARTED:
+		keyword = (event->after & 0x80)
+		    ? keyword_start_charging : keyword_start;
+		int_1 = event->after & 0x7f;
+		has_int_2 = false;
+		break;
+
+	    case APP_CLOSED:
+		keyword = (event->after & 0x80)
+		    ? keyword_stop_charging : keyword_stop;
+		int_1 = event->after & 0x7f;
+		has_int_2 = false;
+		break;
+
+	    case ANOMALOUS_VALUE:
+		keyword = keyword_anomalous;
+		int_1 = event->after;
+		has_int_2 = false;
+		break;
+
+	    default:
+		keyword = (event->before & 0x80)
+		    ? ((event->after & 0x80)
+		      ? keyword_charging : keyword_charge_stop)
+		    : ((event->after & 0x80)
+		      ? keyword_charge_start : keyword_discharging);
+		int_1 = event->after & 0x7f;
+		int_2 = event->before & 0x7f;
+		has_int_2 = true;
+		break;
+	}
+
+	if (has_int_2)
+		i = snprintf(buffer + ret, size - ret,
+		    ",%s,%" PRIu8 ",%" PRIu8, keyword, int_1, int_2);
+	else
+		i = snprintf(buffer + ret, size - ret,
+		    ",%s,%" PRIu8, keyword, int_1);
+
+	if (i <= 0) {
+		APP_LOG(APP_LOG_LEVEL_ERROR, "event_csv_image: "
+		    "Unexpected return value %d from snprintf", i);
+		return false;
+	}
+
+	return true;
 }
 
 /*************
