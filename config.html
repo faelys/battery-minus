@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title></title>
+  <link rel="stylesheet" type="text/css" href="https://cdn.rawgit.com/pebble/slate/v0.0.3/dist/css/slate.min.css">
+  <style>
+  .title {
+    padding: 15px 10px;
+    text-transform: uppercase;
+    font-family: "PT Sans", sans-serif;
+    font-size: 1.2em;
+    font-weight: 500;
+    color: 0x888888;
+    text-align: center;
+  }
+
+  .item-draggable-list .delete-item {
+    right: 45px;
+  }
+  </style>
+  <script>
+  function getRawQueryParam(variable, defaultValue) {
+    var query = location.search.substring(1);
+    var vars = query.split("&");
+    for (var i = 0; i < vars.length; i++) {
+      var pair = vars[i].split("=");
+      if (pair[0] === variable) {
+        return pair[1];
+      }
+    }
+    return defaultValue;
+  }
+
+  function getQueryParam(variable, defaultValue) {
+    return decodeURIComponent(getRawQueryParam(variable, defaultValue));
+  }
+
+  function readAndEncodeList(elementId) {
+    var cn = document.getElementById(elementId).childNodes;
+    var result = [];
+    var i;
+    for (i = 0; i < cn.length; i++) {
+      if (cn[i].className === "item") {
+        result.push(encodeURIComponent(cn[i].childNodes[0].nodeValue));
+      }
+    }
+    return result;
+  }
+
+  function onSubmit() {
+    // Set the return URL depending on the runtime environment
+    var return_to = getQueryParam("return_to", "pebblejs://close#");
+    var options = {
+      "url": document.getElementById("url").value,
+      "dataField": document.getElementById("dataField").value,
+      "extraFields" : readAndEncodeList("extraFields").join(","),
+    }
+
+    if (document.getElementById("resendEverything").checked) {
+       options.resend = true;
+    }
+
+    document.location = return_to + encodeURIComponent(JSON.stringify(options));
+  }
+  </script>
+</head>
+<body>
+  <div class="item-container">
+    <h1 class="title">Battery-</h1>
+  </div>
+
+  <div class="item-container">
+    <div class="item-container-header">Endpoint URL</div>
+    <div class="item-container-content">
+      <label class="item">
+        <input type="text" class="item-input" name="url" id="url" placeholder="http://example.com/post/path">
+      </label>
+      <label class="item">
+        Restart sending everthing
+        <input type="checkbox" class="item-toggle" name="resendEverything" id="resendEverything">
+      </label>
+    </div>
+  </div>
+
+  <div class="item-container">
+    <div class="item-container-header">Data Field Name</div>
+    <div class="item-container-content">
+      <label class="item">
+        <input type="text" class="item-input" name="dataField" id="dataField">
+      </label>
+    </div>
+  </div>
+
+  <div class="item-container">
+    <div class="item-container-header">Extra Form Fields</div>
+    <div class="item-container-content">
+      <div class="item-dynamic-list" id="extraFields">
+      </div>
+    </div>
+    <div class="item-container-footer">
+      Extra fields are sent with constant values along with the sent data.
+      It can be used to provide e.g. an authentication token, or an
+      identification field. Items in the list above must be of the form
+      "name=value" (without quotes), and then part before the equal sign is
+      field name and the part after is its value. Entries without equal sign
+      are considered as a whole field name with empty value.
+    </div>
+  </div>
+
+  <div class="item-container">
+    <div class="button-container">
+      <input id="submitButton" type="button" class="item-button" value="SUBMIT" onClick="onSubmit()">
+    </div>
+  </div>
+
+  <script src="https://cdn.rawgit.com/pebble/slate/v0.0.3/dist/js/slate.min.js"></script>
+  <script>
+    const versionTag = getQueryParam("v");
+    if (versionTag) {
+      document.getElementsByTagName("h1")[0].childNodes[0].nodeValue = "Battery- " + versionTag;
+    }
+
+    var initBundleSize = parseInt(getQueryParam("bundle_max", "1"), 10);
+    if (!(initBundleSize >= 1)) initBundleSize = 1;
+
+    document.getElementById("url").value = getQueryParam("url", "");
+    document.getElementById("dataField").value = getQueryParam("data_field", "");
+
+    var initExtraFields = ("," + getRawQueryParam("extra", "")).split(",");
+    initExtraFields.shift();
+    for (var i = 0; i < initExtraFields.length; i++) {
+      var newNode = document.createElement("label");
+      newNode.className = "item";
+      newNode.appendChild(document.createTextNode(decodeURIComponent(initExtraFields[i])));
+      document.getElementById("extraFields").appendChild(newNode);
+    }
+  </script>
+</body>
+</html>
