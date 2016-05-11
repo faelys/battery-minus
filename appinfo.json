@@ -11,6 +11,11 @@
   "watchapp": {
     "watchface": false
   },
+  "appKeys": {
+    "lastSent": 110,
+    "dataKey": 210,
+    "dataLine": 220
+  },
   "resources": {
     "media": []
   }

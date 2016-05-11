@@ -20,6 +20,11 @@ var cfg_extra_fields = [];
 
 var to_send = [];
 
+function enqueue(key, line) {
+   to_send.push(key + ";" + line);
+   localStorage.setItem("toSend", to_send.join("|"));
+}
+
 Pebble.addEventListener("ready", function(e) {
    console.log("Battery- JS ready");
 
@@ -31,6 +36,17 @@ Pebble.addEventListener("ready", function(e) {
 
    cfg_endpoint = localStorage.getItem("cfgEndpoint");
    cfg_data_field = localStorage.getItem("cfgDataField");
+
+   if (cfg_endpoint && cfg_data_field) {
+      Pebble.sendAppMessage({ "lastSent":
+       parseInt(localStorage.getItem("lastSent") || "0", 10) });
+   }
+});
+
+Pebble.addEventListener("appmessage", function(e) {
+   if (e.payload.dataKey && e.payload.dataLine) {
+      enqueue(e.payload.dataKey, e.payload.dataLine);
+   }
 });
 
 Pebble.addEventListener("showConfiguration", function() {
@@ -79,5 +95,9 @@ Pebble.addEventListener("webviewclosed", function(e) {
       localStorage.setItem("lastSent", "0");
       to_send = [];
       wasConfigured = false;
+   }
+
+   if (!wasConfigured && cfg_endpoint && cfg_data_field) {
+      Pebble.sendAppMessage({ "lastSent": 0 });
    }
 });

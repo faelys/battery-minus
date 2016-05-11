@@ -16,6 +16,7 @@
 
 #include <inttypes.h>
 #include <pebble.h>
+#include "dict_tools.h"
 #include "simple_dialog.h"
 #include "storage.h"
 
@@ -55,6 +56,12 @@ first_index(struct event *page, size_t page_length) {
 /**********************
  * DATA UPLOAD TO WEB *
  **********************/
+
+#define MSG_KEY_LAST_SENT	110
+#define MSG_KEY_DATA_TIME	210
+#define MSG_KEY_DATA_LINE	220
+
+static unsigned upload_index;
 
 static const char keyword_anomalous[] = "error";
 static const char keyword_charge_start[] = "charge";
@@ -153,6 +160,120 @@ event_csv_image(char *buffer, size_t size, struct event *event) {
 	}
 
 	return true;
+}
+
+static bool
+send_event(struct event *event) {
+	AppMessageResult msg_result;
+	DictionaryIterator *iter;
+	DictionaryResult dict_result;
+	char buffer[64];
+	bool result = true;
+
+	if (!event) return false;
+
+	if (!event_csv_image(buffer, sizeof buffer, event))
+		return false;
+
+	msg_result = app_message_outbox_begin(&iter);
+	if (msg_result) {
+		APP_LOG(APP_LOG_LEVEL_ERROR,
+		    "send_event: app_message_outbox_begin returned %d",
+		    (int)msg_result);
+		return false;
+	}
+
+	dict_result = dict_write_int(iter, MSG_KEY_DATA_TIME,
+	    &event->time, sizeof event->time, true);
+	if (dict_result != DICT_OK) {
+		APP_LOG(APP_LOG_LEVEL_ERROR,
+		    "send_event: [%d] unable to add data time %" PRIi32,
+		    (int)dict_result, event->time);
+		result = false;
+	}
+
+	dict_result = dict_write_cstring(iter, MSG_KEY_DATA_LINE, buffer);
+	if (dict_result != DICT_OK) {
+		APP_LOG(APP_LOG_LEVEL_ERROR,
+		    "send_event: [%d] unable to add data line \"%s\"",
+		    (int)dict_result, buffer);
+		result = false;
+	}
+
+	msg_result = app_message_outbox_send();
+	if (msg_result) {
+		APP_LOG(APP_LOG_LEVEL_ERROR,
+		    "send_event: app_mesage_outbox_send returned %d",
+		    (int)msg_result);
+		result = false;
+	}
+
+	return result;
+}
+
+static void
+handle_last_sent(Tuple *tuple) {
+	time_t t = tuple_int(tuple);
+
+	upload_index = first_index(current_page, PAGE_LENGTH);
+
+	if (!current_page[upload_index].time)
+		/* empty page */
+		return;
+
+	if (t)
+		while (current_page[upload_index].time <= t) {
+			unsigned next_index = (upload_index + 1) % PAGE_LENGTH;
+			if (current_page[upload_index].time
+			     > current_page[next_index].time)
+				/* end of page reached without match */
+				return;
+			upload_index = next_index;
+		}
+
+	send_event(current_page + upload_index);
+}
+
+static void
+inbox_received_handler(DictionaryIterator *iterator, void *context) {
+	Tuple *tuple;
+	(void)context;
+
+	for (tuple = dict_read_first(iterator);
+	    tuple;
+	    tuple = dict_read_next(iterator)) {
+		switch (tuple->key) {
+		    case MSG_KEY_LAST_SENT:
+			handle_last_sent(tuple);
+			break;
+
+		    default:
+			APP_LOG(APP_LOG_LEVEL_ERROR,
+			    "Unknown key %" PRIu32 " in received message",
+			    tuple->key);
+			break;
+		}
+	}
+}
+
+static void
+outbox_sent_handler(DictionaryIterator *iterator, void *context) {
+	unsigned next_index = (upload_index + 1) % PAGE_LENGTH;
+	(void)iterator;
+	(void)context;
+
+	if (current_page[upload_index].time <= current_page[next_index].time) {
+		upload_index = next_index;
+		send_event(current_page + next_index);
+	}
+}
+
+static void
+outbox_failed_handler(DictionaryIterator *iterator, AppMessageResult reason,
+    void *context) {
+	(void)iterator;
+	(void)context;
+	APP_LOG(APP_LOG_LEVEL_ERROR, "Outbox failed: 0x%x", (unsigned)reason);
 }
 
 /*************
@@ -478,6 +599,11 @@ init(void) {
 	    .appear = window_appear,
 	});
 	window_stack_push(window, true);
+
+	app_message_register_inbox_received(inbox_received_handler);
+	app_message_register_outbox_failed(outbox_failed_handler);
+	app_message_register_outbox_sent(outbox_sent_handler);
+	app_message_open(256, 2048);
 }
 
 static void
