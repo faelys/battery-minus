@@ -19,11 +19,53 @@ var cfg_data_field = null;
 var cfg_extra_fields = [];
 
 var to_send = [];
+var senders = [new XMLHttpRequest(), new XMLHttpRequest()];
+var i_sender = 1;
+
+function sendPayload(payload) {
+   var data = new FormData();
+   data.append(cfg_data_field, payload);
+
+   if (cfg_extra_fields.length > 0) {
+      for (var i = 0; i < cfg_extra_fields.length; i += 1) {
+         var decoded = decodeURIComponent(cfg_extra_fields[i]).split("=");
+         var name = decoded.shift();
+         var value = decoded.join("=");
+         data.append(name, value);
+      }
+   }
+
+   i_sender = 1 - i_sender;
+   senders[i_sender].open("POST", cfg_endpoint, true);
+   senders[i_sender].send(data);
+}
+
+function sendHead() {
+   if (to_send.length < 1) return;
+   sendPayload(to_send[0].split(";")[1]);
+}
 
 function enqueue(key, line) {
    to_send.push(key + ";" + line);
    localStorage.setItem("toSend", to_send.join("|"));
+   if (to_send.length === 1) {
+      sendHead();
+   }
 }
+
+function uploadDone() {
+   var sent_key = to_send.shift().split(";")[0];
+   localStorage.setItem("toSend", to_send.join("|"));
+   localStorage.setItem("lastSent", sent_key);
+   sendHead();
+}
+
+function uploadError() { console.log(this.statusText); }
+
+senders[0].addEventListener("load", uploadDone);
+senders[0].addEventListener("error", uploadError);
+senders[1].addEventListener("load", uploadDone);
+senders[1].addEventListener("error", uploadError);
 
 Pebble.addEventListener("ready", function(e) {
    console.log("Battery- JS ready");
@@ -40,6 +82,10 @@ Pebble.addEventListener("ready", function(e) {
    if (cfg_endpoint && cfg_data_field) {
       Pebble.sendAppMessage({ "lastSent":
        parseInt(localStorage.getItem("lastSent") || "0", 10) });
+   }
+
+   if (to_send.length >= 1) {
+      sendHead();
    }
 });
 
@@ -82,7 +128,6 @@ Pebble.addEventListener("webviewclosed", function(e) {
    }
 
    if (configData.extraFields !== null) {
-      console.log("received extraFields \"" + configData.extraFields + "\"");
       cfg_extra_fields = configData.extraFields
        ? configData.extraFields.split(",") : [];
       localStorage.setItem("extraFields", cfg_extra_fields.join(","));
