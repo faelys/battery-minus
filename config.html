@@ -60,6 +60,8 @@
       "signFieldName": document.getElementById("signFieldName").value,
       "signKey": document.getElementById("signKey").value,
       "signKeyFormat": document.getElementById("signKeyFormat").value,
+      "wakeupTime" : document.getElementById("wakeupEnable").checked
+       ? document.getElementById("wakeupTime").value : "-1",
       "extraFields" : readAndEncodeList("extraFields").join(","),
     }
 
@@ -73,6 +75,12 @@
   function updateSignVisibility() {
     document.getElementById("signFields").style.display
      = document.getElementById("signEnable").checked
+     ? "block" : "none";
+  }
+
+  function updateWakeupVisibility() {
+    document.getElementById("wakeupFields").style.display
+     = document.getElementById("wakeupEnable").checked
      ? "block" : "none";
   }
   </script>
@@ -101,6 +109,22 @@
       <label class="item">
         <input type="text" class="item-input" name="dataField" id="dataField">
       </label>
+    </div>
+  </div>
+
+  <div class="item-container">
+    <div class="item-container-header">Auto Wakeup</div>
+    <div class="item-container-content">
+      <label class="item">
+        Enable Auto Wakeup
+        <input type="checkbox" class="item-toggle" name="wakeupEnable" id="wakeupEnable" onchange="updateWakeupVisibility();">
+      </label>
+      <div id="wakeupFields">
+        <label class="item">
+          Wake-up time
+          <input type="time" class="item-time" name="wakeupTime" id="wakeupTime" value="00:00">
+        </label>
+      </div>
     </div>
   </div>
 
@@ -194,7 +218,17 @@
     document.getElementById("signKeyFormat").value = getQueryParam("s_keyf", "HEX");
     document.getElementById("signEnable").checked = (getQueryParam("s_field", "") !== "");
 
+    var initWakeupTime = parseInt(getQueryParam("wakeup", "-1"));
+    if (initWakeupTime >= 0) {
+      var wakeupMin = initWakeupTime % 60;
+      document.getElementById("wakeupEnable").checked = true;
+      document.getElementById("wakeupTime").value = (initWakeupTime / 60 | 0).toString(10) + (wakeupMin >= 10 ? ":" : ":0") + wakeupMin.toString(10);
+    } else {
+      document.getElementById("wakeupEnable").checked = false;
+    }
+
     updateSignVisibility();
+    updateWakeupVisibility();
 
     var initExtraFields = ("," + getRawQueryParam("extra", "")).split(",");
     initExtraFields.shift();
