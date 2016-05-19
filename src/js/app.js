@@ -22,6 +22,7 @@ var cfg_sign_field_format = "";
 var cfg_sign_key = "";
 var cfg_sign_key_format = "";
 var cfg_extra_fields = [];
+var cfg_wakeup_time = -1;
 
 var to_send = [];
 var senders = [new XMLHttpRequest(), new XMLHttpRequest()];
@@ -96,6 +97,7 @@ Pebble.addEventListener("ready", function(e) {
    cfg_sign_field_format = localStorage.getItem("cfgSignFieldFormat");
    cfg_sign_key = localStorage.getItem("cfgSignKey");
    cfg_sign_key_format = localStorage.getItem("cfgSignKeyFormat");
+   cfg_wakeup_time = parseInt(localStorage.getItem("cfgWakeupTime") || "-1", 10);
 
    if (cfg_endpoint && cfg_data_field) {
       Pebble.sendAppMessage({ "lastSent":
@@ -130,6 +132,10 @@ Pebble.addEventListener("showConfiguration", function() {
        + "&s_fieldf=" + encodeURIComponent(cfg_sign_field_format)
        + "&s_key=" + encodeURIComponent(cfg_sign_key)
        + "&s_keyf=" + encodeURIComponent(cfg_sign_key_format);
+   }
+
+   if (cfg_wakeup_time >= 0) {
+      settings += "&wakeup=" + cfg_wakeup_time.toString(10);
    }
 
    if (cfg_extra_fields.length > 0) {
@@ -176,6 +182,24 @@ Pebble.addEventListener("webviewclosed", function(e) {
    if (configData.signKeyFormat) {
       cfg_sign_key_format = configData.signKeyFormat;
       localStorage.setItem("cfgSignKeyFormat", cfg_sign_key_format);
+   }
+
+   if (configData.wakeupTime !== null) {
+      console.log("Received wakeupTime \"" + configData.wakeupTime + "\"");
+      var wakeupComponents = configData.wakeupTime.split(":");
+      if (wakeupComponents.length === 2) {
+         var wakeupH = parseInt(wakeupComponents[0], 10);
+         var wakeupM = parseInt(wakeupComponents[1], 10);
+         if (wakeupH >= 0 && wakeupH < 24 && wakeupM >= 0 && wakeupM < 60) {
+            cfg_wakeup_time = wakeupH * 60 + wakeupM;
+            localStorage.setItem("cfgWakeupTime", cfg_wakeup_time);
+            Pebble.sendAppMessage({ "cfgWakeupTime": cfg_wakeup_time });
+         }
+         else
+            console.log("Invalid wakeupTime \"" + configData.wakeupTime + "\"");
+      }
+      else
+         console.log("Invalid wakeupTime \"" + configData.wakeupTime + "\"");
    }
 
    if (configData.extraFields !== null) {

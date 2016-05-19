@@ -14,7 +14,8 @@
   "appKeys": {
     "lastSent": 110,
     "dataKey": 210,
-    "dataLine": 220
+    "dataLine": 220,
+    "cfgWakeupTime": 320
   },
   "resources": {
     "media": []
