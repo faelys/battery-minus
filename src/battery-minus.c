@@ -30,6 +30,7 @@ static SimpleMenuItem menu_items[PAGE_LENGTH];
 static struct event current_page[PAGE_LENGTH];
 static const char *titles[PAGE_LENGTH];
 static const char *dates[PAGE_LENGTH];
+static int cfg_wakeup_time = -1;
 
 static void
 do_start_worker(int index, void *context);
@@ -60,6 +61,7 @@ first_index(struct event *page, size_t page_length) {
 #define MSG_KEY_LAST_SENT	110
 #define MSG_KEY_DATA_TIME	210
 #define MSG_KEY_DATA_LINE	220
+#define MSG_KEY_CFG_WAKEUP_TIME	320
 
 static unsigned upload_index;
 
@@ -245,6 +247,12 @@ inbox_received_handler(DictionaryIterator *iterator, void *context) {
 		switch (tuple->key) {
 		    case MSG_KEY_LAST_SENT:
 			handle_last_sent(tuple);
+			break;
+
+		    case MSG_KEY_CFG_WAKEUP_TIME:
+			cfg_wakeup_time = tuple_int(tuple);
+			persist_write_int(MSG_KEY_CFG_WAKEUP_TIME,
+			    cfg_wakeup_time + 1);
 			break;
 
 		    default:
@@ -526,6 +534,8 @@ window_unload(Window *window) {
 
 static void
 init(void) {
+	cfg_wakeup_time = persist_read_int(MSG_KEY_CFG_WAKEUP_TIME) - 1;
+
 	persist_read_data(1, current_page, sizeof current_page);
 
 #ifdef DISPLAY_TEST_DATA
@@ -616,6 +626,26 @@ deinit(void) {
 
 		if (dates[i]) free((void *)dates[i]);
 		dates[i] = 0;
+	}
+
+	if (cfg_wakeup_time >= 0) {
+		WakeupId res;
+		time_t now = time(0);
+		time_t t = clock_to_timestamp(TODAY,
+		    cfg_wakeup_time / 60, cfg_wakeup_time % 60);
+
+		if (t - now > 6 * 86400)
+			t -= 6 * 86400;
+		else if (t - now <= 120)
+			t += 86400;
+
+		res = wakeup_schedule(t, 0, true);
+
+		if (res < 0)
+			APP_LOG(APP_LOG_LEVEL_ERROR,
+			    "wakeup_schedule(%" PRIi32 ", 0, true)"
+			    " returned %" PRIi32,
+			    t, res);
 	}
 }
 
