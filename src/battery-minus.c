@@ -42,6 +42,11 @@ do_stop_worker(int index, void *context);
  * UTILITIES *
  *************/
 
+static void
+close_app(void) {
+	window_stack_pop_all(true);
+}
+
 static unsigned
 first_index(struct event *page, size_t page_length) {
 	unsigned j;
@@ -219,17 +224,22 @@ handle_last_sent(Tuple *tuple) {
 
 	upload_index = first_index(current_page, PAGE_LENGTH);
 
-	if (!current_page[upload_index].time)
+	if (!current_page[upload_index].time) {
 		/* empty page */
+		if (launch_reason() == APP_LAUNCH_WAKEUP) close_app();
 		return;
+	}
 
 	if (t)
 		while (current_page[upload_index].time <= t) {
 			unsigned next_index = (upload_index + 1) % PAGE_LENGTH;
 			if (current_page[upload_index].time
-			     > current_page[next_index].time)
+			     > current_page[next_index].time) {
 				/* end of page reached without match */
+				if (launch_reason() == APP_LAUNCH_WAKEUP)
+					close_app();
 				return;
+			}
 			upload_index = next_index;
 		}
 
@@ -273,6 +283,8 @@ outbox_sent_handler(DictionaryIterator *iterator, void *context) {
 	if (current_page[upload_index].time <= current_page[next_index].time) {
 		upload_index = next_index;
 		send_event(current_page + next_index);
+	} else if (launch_reason() == APP_LAUNCH_WAKEUP) {
+		close_app();
 	}
 }
 
@@ -282,6 +294,8 @@ outbox_failed_handler(DictionaryIterator *iterator, AppMessageResult reason,
 	(void)iterator;
 	(void)context;
 	APP_LOG(APP_LOG_LEVEL_ERROR, "Outbox failed: 0x%x", (unsigned)reason);
+	if (launch_reason() == APP_LAUNCH_WAKEUP)
+		close_app();
 }
 
 /*************
@@ -597,6 +611,15 @@ init(void) {
 		current_page[i].time = 0;
 		current_page[i].before = 0;
 		current_page[i].after = 0;
+	}
+#else
+	if (launch_reason() == APP_LAUNCH_WAKEUP) {
+		push_simple_dialog("Battery- Auto Sync", true);
+		app_message_register_inbox_received(inbox_received_handler);
+		app_message_register_outbox_failed(outbox_failed_handler);
+		app_message_register_outbox_sent(outbox_sent_handler);
+		app_message_open(256, 2048);
+		return;
 	}
 #endif
 
