@@ -549,6 +549,7 @@ window_unload(Window *window) {
 static void
 init(void) {
 	cfg_wakeup_time = persist_read_int(MSG_KEY_CFG_WAKEUP_TIME) - 1;
+	wakeup_cancel_all();
 
 	persist_read_data(1, current_page, sizeof current_page);
 
