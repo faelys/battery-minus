@@ -13,6 +13,7 @@
   },
   "appKeys": {
     "lastSent": 110,
+    "lastPosted": 120,
     "dataKey": 210,
     "dataLine": 220,
     "cfgWakeupTime": 320
