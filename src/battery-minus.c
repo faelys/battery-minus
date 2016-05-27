@@ -64,11 +64,13 @@ first_index(struct event *page, size_t page_length) {
  **********************/
 
 #define MSG_KEY_LAST_SENT	110
+#define MSG_KEY_LAST_POSTED	120
 #define MSG_KEY_DATA_TIME	210
 #define MSG_KEY_DATA_LINE	220
 #define MSG_KEY_CFG_WAKEUP_TIME	320
 
 static unsigned upload_index;
+static time_t upload_last_key;
 
 static const char keyword_anomalous[] = "error";
 static const char keyword_charge_start[] = "charge";
@@ -265,6 +267,13 @@ inbox_received_handler(DictionaryIterator *iterator, void *context) {
 			    cfg_wakeup_time + 1);
 			break;
 
+		    case MSG_KEY_LAST_POSTED:
+			if (tuple_int(tuple) == upload_last_key
+			    && launch_reason() == APP_LAUNCH_WAKEUP) {
+				close_app();
+			}
+			break;
+
 		    default:
 			APP_LOG(APP_LOG_LEVEL_ERROR,
 			    "Unknown key %" PRIu32 " in received message",
@@ -283,8 +292,8 @@ outbox_sent_handler(DictionaryIterator *iterator, void *context) {
 	if (current_page[upload_index].time <= current_page[next_index].time) {
 		upload_index = next_index;
 		send_event(current_page + next_index);
-	} else if (launch_reason() == APP_LAUNCH_WAKEUP) {
-		close_app();
+	} else {
+		upload_last_key = current_page[upload_index].time;
 	}
 }
 
