@@ -25,12 +25,13 @@
 static Window *window;
 static SimpleMenuLayer *menu_layer;
 static SimpleMenuSection menu_section;
-static SimpleMenuItem menu_items[PAGE_LENGTH];
+static SimpleMenuItem menu_items[PAGE_LENGTH + 2];
 
 static struct event current_page[PAGE_LENGTH];
 static const char *titles[PAGE_LENGTH];
 static const char *dates[PAGE_LENGTH];
 static int cfg_wakeup_time = -1;
+static char send_status[64];
 
 static void
 do_start_worker(int index, void *context);
@@ -59,6 +60,11 @@ first_index(struct event *page, size_t page_length) {
 	return j;
 }
 
+static void
+mark_menu_dirty(void) {
+	layer_mark_dirty(simple_menu_layer_get_layer(menu_layer));
+}
+
 /**********************
  * DATA UPLOAD TO WEB *
  **********************/
@@ -70,6 +76,7 @@ first_index(struct event *page, size_t page_length) {
 #define MSG_KEY_CFG_WAKEUP_TIME	320
 
 static unsigned upload_index;
+static unsigned upload_done;
 static time_t upload_last_key;
 
 static const char keyword_anomalous[] = "error";
@@ -221,6 +228,16 @@ send_event(struct event *event) {
 }
 
 static void
+handle_nothing_to_do(void) {
+	if (launch_reason() == APP_LAUNCH_WAKEUP)
+		close_app();
+	else {
+		snprintf(send_status, sizeof send_status, "Done (0)");
+		mark_menu_dirty();
+	}
+}
+
+static void
 handle_last_sent(Tuple *tuple) {
 	time_t t = tuple_int(tuple);
 
@@ -228,7 +245,7 @@ handle_last_sent(Tuple *tuple) {
 
 	if (!current_page[upload_index].time) {
 		/* empty page */
-		if (launch_reason() == APP_LAUNCH_WAKEUP) close_app();
+		handle_nothing_to_do();
 		return;
 	}
 
@@ -238,12 +255,14 @@ handle_last_sent(Tuple *tuple) {
 			if (current_page[upload_index].time
 			     > current_page[next_index].time) {
 				/* end of page reached without match */
-				if (launch_reason() == APP_LAUNCH_WAKEUP)
-					close_app();
+				handle_nothing_to_do();
 				return;
 			}
 			upload_index = next_index;
 		}
+
+	snprintf(send_status, sizeof send_status, "0 sent");
+	mark_menu_dirty();
 
 	send_event(current_page + upload_index);
 }
@@ -259,6 +278,13 @@ inbox_received_handler(DictionaryIterator *iterator, void *context) {
 		switch (tuple->key) {
 		    case MSG_KEY_LAST_SENT:
 			handle_last_sent(tuple);
+			break;
+
+		    case MSG_KEY_LAST_POSTED:
+			if (tuple_int(tuple) ==upload_last_key
+			    && launch_reason() == APP_LAUNCH_WAKEUP) {
+				close_app();
+			}
 			break;
 
 		    case MSG_KEY_CFG_WAKEUP_TIME:
@@ -289,11 +315,18 @@ outbox_sent_handler(DictionaryIterator *iterator, void *context) {
 	(void)iterator;
 	(void)context;
 
+	upload_done += 1;
+
 	if (current_page[upload_index].time <= current_page[next_index].time) {
 		upload_index = next_index;
 		send_event(current_page + next_index);
+		snprintf(send_status, sizeof send_status, "%u sent",
+		    upload_done);
 	} else {
 		upload_last_key = current_page[upload_index].time;
+		snprintf(send_status, sizeof send_status, "Done (%u)",
+		    upload_done);
+		mark_menu_dirty();
 	}
 }
 
@@ -305,6 +338,8 @@ outbox_failed_handler(DictionaryIterator *iterator, AppMessageResult reason,
 	APP_LOG(APP_LOG_LEVEL_ERROR, "Outbox failed: 0x%x", (unsigned)reason);
 	if (launch_reason() == APP_LAUNCH_WAKEUP)
 		close_app();
+	snprintf(send_status, sizeof send_status, "Outbox failed 0x%x",
+	    (unsigned)reason);
 }
 
 /*************
@@ -431,14 +466,22 @@ rebuild_menu(void) {
 	menu_section.items = menu_items;
 	menu_section.num_items = 0;
 
+	menu_items[menu_section.num_items] = (SimpleMenuItem){
+	    .title = send_status,
+	    .subtitle = 0,
+	    .callback = 0,
+	    .icon = 0
+	};
+	menu_section.num_items += 1;
+
 	if (app_worker_is_running()) {
-		menu_items[0] = (SimpleMenuItem){
+		menu_items[menu_section.num_items] = (SimpleMenuItem){
 		    .title = "Stop worker",
 		    .callback = &do_stop_worker
 		};
 		menu_section.num_items += 1;
 	} else {
-		menu_items[0] = (SimpleMenuItem){
+		menu_items[menu_section.num_items] = (SimpleMenuItem){
 		    .title = "Start worker",
 		    .callback = &do_start_worker
 		};
@@ -542,6 +585,7 @@ window_load(Window *window) {
 
 	menu_layer = simple_menu_layer_create(bounds, window,
 	    &menu_section, 1, 0);
+	simple_menu_layer_set_selected_index(menu_layer, 1, false);
 
 	layer_add_child(window_layer, simple_menu_layer_get_layer(menu_layer));
 }
@@ -557,6 +601,8 @@ window_unload(Window *window) {
 
 static void
 init(void) {
+	snprintf(send_status, sizeof send_status, "Waiting for JS");
+
 	cfg_wakeup_time = persist_read_int(MSG_KEY_CFG_WAKEUP_TIME) - 1;
 	wakeup_cancel_all();
 
