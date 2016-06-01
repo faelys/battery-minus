@@ -281,7 +281,7 @@ inbox_received_handler(DictionaryIterator *iterator, void *context) {
 			break;
 
 		    case MSG_KEY_LAST_POSTED:
-			if (tuple_int(tuple) ==upload_last_key
+			if (tuple_int(tuple) == upload_last_key
 			    && launch_reason() == APP_LAUNCH_WAKEUP) {
 				close_app();
 			}
@@ -291,13 +291,6 @@ inbox_received_handler(DictionaryIterator *iterator, void *context) {
 			cfg_wakeup_time = tuple_int(tuple);
 			persist_write_int(MSG_KEY_CFG_WAKEUP_TIME,
 			    cfg_wakeup_time + 1);
-			break;
-
-		    case MSG_KEY_LAST_POSTED:
-			if (tuple_int(tuple) == upload_last_key
-			    && launch_reason() == APP_LAUNCH_WAKEUP) {
-				close_app();
-			}
 			break;
 
 		    default:
