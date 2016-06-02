@@ -75,9 +75,9 @@ mark_menu_dirty(void) {
 #define MSG_KEY_DATA_LINE	220
 #define MSG_KEY_CFG_WAKEUP_TIME	320
 
-static unsigned upload_index;
-static unsigned upload_done;
-static time_t upload_last_key;
+static unsigned sent_index;
+static unsigned sent_done;
+static time_t sent_last_key;
 
 static const char keyword_anomalous[] = "error";
 static const char keyword_charge_start[] = "charge";
@@ -241,30 +241,30 @@ static void
 handle_last_sent(Tuple *tuple) {
 	time_t t = tuple_int(tuple);
 
-	upload_index = first_index(current_page, PAGE_LENGTH);
+	sent_index = first_index(current_page, PAGE_LENGTH);
 
-	if (!current_page[upload_index].time) {
+	if (!current_page[sent_index].time) {
 		/* empty page */
 		handle_nothing_to_do();
 		return;
 	}
 
 	if (t)
-		while (current_page[upload_index].time <= t) {
-			unsigned next_index = (upload_index + 1) % PAGE_LENGTH;
-			if (current_page[upload_index].time
+		while (current_page[sent_index].time <= t) {
+			unsigned next_index = (sent_index + 1) % PAGE_LENGTH;
+			if (current_page[sent_index].time
 			     > current_page[next_index].time) {
 				/* end of page reached without match */
 				handle_nothing_to_do();
 				return;
 			}
-			upload_index = next_index;
+			sent_index = next_index;
 		}
 
 	snprintf(send_status, sizeof send_status, "0 sent");
 	mark_menu_dirty();
 
-	send_event(current_page + upload_index);
+	send_event(current_page + sent_index);
 }
 
 static void
@@ -281,7 +281,7 @@ inbox_received_handler(DictionaryIterator *iterator, void *context) {
 			break;
 
 		    case MSG_KEY_LAST_POSTED:
-			if (tuple_int(tuple) == upload_last_key
+			if (tuple_int(tuple) == sent_last_key
 			    && launch_reason() == APP_LAUNCH_WAKEUP) {
 				close_app();
 			}
@@ -304,21 +304,21 @@ inbox_received_handler(DictionaryIterator *iterator, void *context) {
 
 static void
 outbox_sent_handler(DictionaryIterator *iterator, void *context) {
-	unsigned next_index = (upload_index + 1) % PAGE_LENGTH;
+	unsigned next_index = (sent_index + 1) % PAGE_LENGTH;
 	(void)iterator;
 	(void)context;
 
-	upload_done += 1;
+	sent_done += 1;
 
-	if (current_page[upload_index].time <= current_page[next_index].time) {
-		upload_index = next_index;
+	if (current_page[sent_index].time <= current_page[next_index].time) {
+		sent_index = next_index;
 		send_event(current_page + next_index);
 		snprintf(send_status, sizeof send_status, "%u sent",
-		    upload_done);
+		    sent_done);
 	} else {
-		upload_last_key = current_page[upload_index].time;
+		sent_last_key = current_page[sent_index].time;
 		snprintf(send_status, sizeof send_status, "Done (%u)",
-		    upload_done);
+		    sent_done);
 		mark_menu_dirty();
 	}
 }
