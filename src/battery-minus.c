@@ -62,6 +62,7 @@ first_index(struct event *page, size_t page_length) {
 
 static void
 mark_menu_dirty(void) {
+	if (!menu_layer) return;
 	layer_mark_dirty(simple_menu_layer_get_layer(menu_layer));
 }
 
